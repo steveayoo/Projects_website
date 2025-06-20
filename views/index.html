@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Portfolio</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="nav-container">
+                <h1 class="nav-logo">My Portfolio</h1>
+                <a href="/login" class="admin-link">
+                    <i class="fas fa-user-shield"></i> Steve
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="hero-content">
+                <h1>Welcome to My Portfolio</h1>
+                <p>Explore my projects and work</p>
+            </div>
+        </section>
+
+        <section class="projects-section">
+            <div class="container">
+                <h2>My Projects</h2>
+                <div id="projects-grid" class="projects-grid">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading projects...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Steve Ayoo. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Load projects on page load
+        document.addEventListener('DOMContentLoaded', loadProjects);
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/projects');
+                const projects = await response.json();
+                displayProjects(projects);
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                document.getElementById('projects-grid').innerHTML = `
+                    <div class="error">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error loading projects</p>
+                    </div>
+                `;
+            }
+        }
+
+        function displayProjects(projects) {
+            const grid = document.getElementById('projects-grid');
+            
+            if (projects.length === 0) {
+                grid.innerHTML = `
+                    <div class="no-projects">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No projects available yet</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = projects.map(project => `
+                <div class="project-card">
+                    <div class="project-header">
+                        <h3>${escapeHtml(project.name)}</h3>
+                        <div class="project-date">
+                            ${new Date(project.created_at).toLocaleDateString()}
+                        </div>
+                    </div>
+                    <div class="project-content">
+                        <p class="project-description">${escapeHtml(project.description)}</p>
+                        <div class="project-actions">
+                            ${project.file_path ? `
+                                <a href="${project.file_path}" target="_blank" class="btn-secondary">
+                                    <i class="fas fa-file-${getFileIcon(project.file_type)}"></i>
+                                    View Document
+                                </a>
+                            ` : ''}
+                            ${project.project_link ? `
+                                <a href="${escapeHtml(project.project_link)}" target="_blank" class="btn-primary">
+                                    <i class="fas fa-external-link-alt"></i>
+                                    View Project
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getFileIcon(fileType) {
+            switch(fileType) {
+                case '.pdf': return 'pdf';
+                case '.doc':
+                case '.docx': return 'word';
+                default: return 'alt';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

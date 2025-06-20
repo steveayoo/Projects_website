@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Steve Ayoo Projcts</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="admin-page">
+    <header class="admin-header">
+        <nav class="admin-nav">
+            <div class="nav-container">
+                <h1>Admin Dashboard</h1>
+                <div class="nav-actions">
+                    <a href="/" target="_blank" class="btn-secondary">
+                        <i class="fas fa-eye"></i> View Site
+                    </a>
+                    <button id="logout-btn" class="btn-danger">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="admin-main">
+        <div class="admin-container">
+            <div class="admin-sidebar">
+                <div class="admin-actions">
+                    <button id="add-project-btn" class="btn-primary">
+                        <i class="fas fa-plus"></i> Add New Project
+                    </button>
+                </div>
+            </div>
+            
+            <div class="admin-content">
+                <div class="projects-header">
+                    <h2>Manage Projects</h2>
+                    <div class="projects-count">
+                        Total Projects: <span id="projects-count">0</span>
+                    </div>
+                </div>
+                
+                <div id="projects-list" class="projects-list">
+                    <div class="loading">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Loading projects...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Project Modal -->
+    <div id="project-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Add New Project</h3>
+                <button class="modal-close" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="project-form" class="project-form" enctype="multipart/form-data">
+                <input type="hidden" id="project-id" name="project-id">
+                
+                <div class="form-group">
+                    <label for="project-name">
+                        <i class="fas fa-tag"></i> Project Name *
+                    </label>
+                    <input type="text" id="project-name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="project-description">
+                        <i class="fas fa-align-left"></i> Description *
+                    </label>
+                    <textarea id="project-description" name="description" rows="4" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="project-file">
+                        <i class="fas fa-file-upload"></i> Upload Document (PDF/Word)
+                    </label>
+                    <input type="file" id="project-file" name="file" accept=".pdf,.doc,.docx">
+                    <small>Current file: <span id="current-file">None</span></small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="project-link">
+                        <i class="fas fa-link"></i> Project Link
+                    </label>
+                    <input type="url" id="project-link" name="project_link" placeholder="https://example.com">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Save Project
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <script>
+        let currentEditId = null;
+        
+        // Load projects on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProjects();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('add-project-btn').addEventListener('click', () => openModal());
+            document.getElementById('logout-btn').addEventListener('click', logout);
+            document.getElementById('project-form').addEventListener('submit', handleFormSubmit);
+        }
+
+        async function loadProjects() {
+            try {
+                const response = await fetch('/projects');
+                const projects = await response.json();
+                displayProjects(projects);
+                document.getElementById('projects-count').textContent = projects.length;
+            } catch (error) {
+                showMessage('Error loading projects', 'error');
+            }
+        }
+
+        function displayProjects(projects) {
+            const container = document.getElementById('projects-list');
+            
+            if (projects.length === 0) {
+                container.innerHTML = `
+                    <div class="no-projects">
+                        <i class="fas fa-folder-open"></i>
+                        <p>No projects yet. Add your first project!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = projects.map(project => `
+                <div class="project-item">
+                    <div class="project-info">
+                        <h3>${escapeHtml(project.name)}</h3>
+                        <p class="project-description">${escapeHtml(project.description)}</p>
+                        <div class="project-meta">
+                            <span class="project-date">
+                                <i class="fas fa-calendar"></i>
+                                ${new Date(project.created_at).toLocaleDateString()}
+                            </span>
+                            ${project.file_path ? `
+                                <span class="has-file">
+                                    <i class="fas fa-file-${getFileIcon(project.file_type)}"></i>
+                                    Document
+                                </span>
+                            ` : ''}
+                            ${project.project_link ? `
+                                <span class="has-link">
+                                    <i class="fas fa-link"></i>
+                                    Link
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div class="project-actions">
+                        <button class="btn-edit" onclick="editProject(${project.id})">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-delete" onclick="deleteProject(${project.id}, '${escapeHtml(project.name)}')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openModal(project = null) {
+            const modal = document.getElementById('project-modal');
+            const form = document.getElementById('project-form');
+            const title = document.getElementById('modal-title');
+            
+            currentEditId = project ? project.id : null;
+            
+            if (project) {
+                title.textContent = 'Edit Project';
+                document.getElementById('project-id').value = project.id;
+                document.getElementById('project-name').value = project.name;
+                document.getElementById('project-description').value = project.description;
+                document.getElementById('project-link').value = project.project_link || '';
+                document.getElementById('current-file').textContent = project.file_path ? 
+                    project.file_path.split('/').pop() : 'None';
+            } else {
+                title.textContent = 'Add New Project';
+                form.reset();
+                document.getElementById('current-file').textContent = 'None';
+            }
+            
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('project-modal').style.display = 'none';
+            currentEditId = null;
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+            submitBtn.disabled = true;
+            
+            try {
+                const url = currentEditId ? `/projects/${currentEditId}` : '/projects';
+                const method = currentEditId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    closeModal();
+                    loadProjects();
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error saving project', 'error');
+            } finally {
+                submitBtn.innerHTML = '<i class="fas fa-save"></i> Save Project';
+                submitBtn.disabled = false;
+            }
+        }
+
+        async function editProject(id) {
+            try {
+                const response = await fetch('/projects');
+                const projects = await response.json();
+                const project = projects.find(p => p.id === id);
+                
+                if (project) {
+                    openModal(project);
+                } else {
+                    showMessage('Project not found', 'error');
+                }
+            } catch (error) {
+                showMessage('Error loading project', 'error');
+            }
+        }
+
+        async function deleteProject(id, name) {
+            if (!confirm(`Are you sure you want to delete "${name}"? This action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/projects/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showMessage(data.message, 'success');
+                    loadProjects();
+                } else {
+                    showMessage(data.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Error deleting project', 'error');
+            }
+        }
+
+        async function logout() {
+            if (!confirm('Are you sure you want to logout?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/auth/logout', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    window.location.href = '/login';
+                } else {
+                    showMessage('Error logging out', 'error');
+                }
+            } catch (error) {
+                showMessage('Error logging out', 'error');
+            }
+        }
+
+        function showMessage(text, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                ${text}
+            `;
+            messageDiv.style.display = 'block';
+            
+            setTimeout(() => {
+                messageDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function getFileIcon(fileType) {
+            switch(fileType) {
+                case '.pdf': return 'pdf';
+                case '.doc':
+                case '.docx': return 'word';
+                default: return 'alt';
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', (e) => {
+            const modal = document.getElementById('project-modal');
+            if (e.target === modal) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>
